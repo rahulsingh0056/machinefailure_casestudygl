@@ -1,24 +1,35 @@
-import os
+from pathlib import Path
 import streamlit as st
 import pandas as pd
 import joblib
 
-# Load the model committed by the pipeline (sits next to this file)
-model_path = os.path.join(os.path.dirname(__file__), "best_machine_failure_model_v1.joblib")
-model = joblib.load(model_path)
-
+st.set_page_config(page_title="Machine Failure Prediction", layout="centered")
 st.title("Machine Failure Prediction App")
-st.write("""
-This application predicts the likelihood of a machine failing based on its operational parameters.
-Enter the sensor and configuration data below to get a prediction.
-""")
+st.write(
+    "Enter the machine's operating parameters to estimate the likelihood of failure."
+)
 
-Type         = st.selectbox("Machine Type", ["H", "L", "M"])
-air_temp     = st.number_input("Air Temperature (K)", 250.0, 400.0, 298.0, 0.1)
-process_temp = st.number_input("Process Temperature (K)", 250.0, 500.0, 324.0, 0.1)
-rot_speed    = st.number_input("Rotational Speed (RPM)", 0, 3000, 1400)
-torque       = st.number_input("Torque (Nm)", 0.0, 100.0, 40.0, 0.1)
-tool_wear    = st.number_input("Tool Wear (min)", 0, 300, 10)
+MODEL_PATH = Path(__file__).resolve().parent / "best_machine_failure_model_v1.joblib"
+if not MODEL_PATH.is_file():
+    st.error(f"Trained model file not found: {MODEL_PATH}")
+    st.info(
+        "Run the GitHub Actions MLOps pipeline successfully and ensure the model "
+        "artifact is committed to the deployment/ folder."
+    )
+    st.stop()
+
+@st.cache_resource
+def load_model(path):
+    return joblib.load(path)
+
+model = load_model(str(MODEL_PATH))
+
+machine_type = st.selectbox("Machine Type", ["H", "L", "M"])
+air_temp = st.number_input("Air Temperature (K)", min_value=250.0, max_value=400.0, value=298.0, step=0.1)
+process_temp = st.number_input("Process Temperature (K)", min_value=250.0, max_value=500.0, value=324.0, step=0.1)
+rot_speed = st.number_input("Rotational Speed (RPM)", min_value=0, max_value=3000, value=1400)
+torque = st.number_input("Torque (Nm)", min_value=0.0, max_value=100.0, value=40.0, step=0.1)
+tool_wear = st.number_input("Tool Wear (min)", min_value=0, max_value=300, value=10)
 
 input_data = pd.DataFrame([{
     "Air temperature": air_temp,
@@ -26,11 +37,14 @@ input_data = pd.DataFrame([{
     "Rotational speed": rot_speed,
     "Torque": torque,
     "Tool wear": tool_wear,
-    "Type": Type,
+    "Type": machine_type,
 }])
 
-if st.button("Predict Failure"):
-    prediction = model.predict(input_data)[0]
+if st.button("Predict Failure", type="primary"):
+    prediction = int(model.predict(input_data)[0])
     result = "Machine Failure" if prediction == 1 else "No Failure"
-    st.subheader("Prediction Result:")
-    st.success(f"The model predicts: **{result}**")
+    st.subheader("Prediction Result")
+    if prediction == 1:
+        st.error(f"The model predicts: {result}")
+    else:
+        st.success(f"The model predicts: {result}")
