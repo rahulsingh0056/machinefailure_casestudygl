@@ -1,13 +1,12 @@
 name: Machine Failure MLOps Pipeline
 
 on:
-  workflow_dispatch:      # lets you click "Run workflow" in the Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  # ---------- JOB 1: Register Dataset ----------
   register-dataset:
     name: Register Dataset
     runs-on: ubuntu-latest
@@ -20,16 +19,10 @@ jobs:
         run: pip install -r requirements.txt
       - name: Register dataset
         run: python model_building/register.py
-      - name: Upload registered dataset
-        uses: actions/upload-artifact@v4
-        with:
-          name: registered-data
-          path: data/machine-failure-prediction.csv
 
-  # ---------- JOB 2: Data Preparation ----------
   data-preparation:
     name: Data Preparation
-    needs: register-dataset          # waits for Job 1 to finish
+    needs: register-dataset
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,10 +43,9 @@ jobs:
             ytrain.csv
             ytest.csv
 
-  # ---------- JOB 3: Model Training ----------
   model-training:
     name: Model Training
-    needs: data-preparation          # waits for Job 2 to finish
+    needs: data-preparation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,13 +57,13 @@ jobs:
       - name: Download train/test splits
         uses: actions/download-artifact@v4
         with:
-          name: data-splits          # brings Xtrain/Xtest/ytrain/ytest from Job 2
+          name: data-splits
       - name: Train model
         run: python model_building/train.py
       - name: Commit trained model
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add deployment/best_machine_failure_model_v1.joblib
           git commit -m "Add trained model [skip ci]" || echo "No changes to commit"
           git push
